@@ -1,4 +1,4 @@
 [submodule "Rock-Capture-Database"]
-	path = Rock-Capture-Database
+	path = Databank/Rock-Capture-Database
 	url = https://github.com/mort13/Rock-Capture-Database
 	branch = main
