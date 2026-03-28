@@ -16,8 +16,7 @@ let conn = null; // DuckDB connection
 
 // ── DuckDB bootstrap ─────────────────────────────────────────────
 async function initDuckDB() {
-  // Use local node_modules to avoid CDN 404s
-  const DIST = new URL('/node_modules/@duckdb/duckdb-wasm/dist/', location.href).href;
+  const DIST = 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev20.0/dist/';
   const bundles = {
     mvp: {
       mainModule: DIST + 'duckdb-mvp.wasm',
