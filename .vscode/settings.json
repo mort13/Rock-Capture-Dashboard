@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^cd \"C:/Users/Nutzer/Documents/Regolith/Rock Capture Dashboard\" && node find-imports\\.js$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

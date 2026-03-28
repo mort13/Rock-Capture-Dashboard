@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rock Capture Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Import map: resolve bare module specifiers to local node_modules -->
+  <script type="importmap">
+  {
+    "imports": {
+      "apache-arrow":        "/node_modules/apache-arrow/Arrow.dom.mjs",
+      "@duckdb/duckdb-wasm": "/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser.mjs",
+      "tslib":               "/node_modules/tslib/tslib.es6.mjs",
+      "flatbuffers":         "/node_modules/flatbuffers/mjs/flatbuffers.js"
+    }
+  }
+  </script>
+  <!-- Plotly for charts -->
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+</head>
+<body>
+
+  <header>
+    <h1>Rock Capture Dashboard</h1>
+    <div class="header-actions">
+      <button id="add-panel" title="Add a custom chart panel">&#xff0b; Add Panel</button>
+      <button id="export-config" title="Download dashboard config as JSON">&#11015; Export</button>
+      <label class="btn-secondary" id="import-config-label" title="Load dashboard config from JSON file">
+        &#11014; Import
+        <input type="file" id="import-config-input" accept=".json" style="display:none">
+      </label>
+      <button id="toggle-overlay" title="Open Query Editor">&#9998; Query Editor</button>
+    </div>
+  </header>
+
+  <!-- Dashboard panels (rendered dynamically by dashboard.js) ---------- -->
+  <main id="dashboard"></main>
+
+  <!-- Query Editor Overlay ----------------------------------------------- -->
+  <div id="overlay" class="overlay hidden">
+    <div class="overlay-inner">
+      <div class="overlay-header">
+        <h2>Query Editor</h2>
+        <button id="close-overlay">&times;</button>
+      </div>
+
+      <div class="overlay-tabs">
+        <button class="tab active" data-tab="sql">SQL</button>
+        <button class="tab" data-tab="chart">Chart Builder</button>
+        <button class="tab" data-tab="js">JavaScript</button>
+      </div>
+
+      <!-- SQL tab -->
+      <div id="tab-sql" class="tab-content active">
+        <p class="hint">
+          Tables available: <code>scans</code>, <code>compositions</code>.
+          Write any SQL — aggregations, joins, filters, etc.
+        </p>
+        <textarea id="sql-input" spellcheck="false" rows="8">-- Example: average mass per deposit type
+SELECT deposit,
+       ROUND(AVG(mass), 1) AS avg_mass,
+       COUNT(*) AS n
+FROM scans
+GROUP BY deposit
+ORDER BY avg_mass DESC;</textarea>
+      </div>
+
+      <!-- Chart Builder tab -->
+      <div id="tab-chart" class="tab-content">
+        <p class="hint">
+          Write SQL to fetch data — any columns you SELECT become available as axis options.
+          Tables: <code>scans</code>, <code>compositions</code>. Join on <code>capture_id</code>.
+        </p>
+        <textarea id="chart-sql" spellcheck="false" rows="7">-- Filter by material, compute derived columns, then map to axes below
+SELECT s.mass,
+       s.volume * c.amount   AS vol_times_amount,
+       c.quality,
+       c.type,
+       s.deposit
+FROM scans s
+JOIN compositions c ON s.capture_id = c.capture_id
+WHERE c.type = 'iron'</textarea>
+
+        <div class="chart-builder-actions">
+          <button id="cb-fetch" class="btn-secondary">&#8635; Fetch Columns</button>
+          <span id="cb-fetch-status"></span>
+        </div>
+
+        <div id="cb-mapping" class="cb-mapping hidden">
+          <div class="mapping-grid">
+            <label>Chart type</label>
+            <select id="cb-type">
+              <option value="scatter">Scatter</option>
+              <option value="bar">Bar</option>
+              <option value="line">Line</option>
+              <option value="pie">Pie</option>
+            </select>
+
+            <label>X axis <span class="req">*</span></label>
+            <select id="cb-x"></select>
+
+            <label>Y axis <span class="req">*</span></label>
+            <select id="cb-y"></select>
+
+            <label>Color / Heatmap</label>
+            <select id="cb-color"><option value="">— none —</option></select>
+
+            <label>Size <small>(scatter)</small></label>
+            <select id="cb-size"><option value="">— none —</option></select>
+
+            <label>Hover label</label>
+            <select id="cb-text"><option value="">— none —</option></select>
+          </div>
+
+          <div class="chart-builder-actions">
+            <button id="cb-plot" class="btn-secondary">&#9654; Preview</button>
+            <button id="cb-save" class="btn-primary">&#10133; Save as Panel</button>
+            <span id="cb-plot-status"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- JS tab -->
+      <div id="tab-js" class="tab-content">
+        <p class="hint">
+          Use <code>await query(sql)</code> to run SQL and get rows.
+          Use <code>plot(divId, plotlyData, layout)</code> to render charts.
+          Return a value to display it as a table.
+        </p>
+        <textarea id="js-input" spellcheck="false" rows="12">// Example: plot volume vs mass per deposit
+const rows = await query(`
+  SELECT mass, volume, deposit
+  FROM scans
+  WHERE mass IS NOT NULL
+`);
+
+plot('user-chart', [{
+  x: rows.map(r => r.mass),
+  y: rows.map(r => r.volume),
+  text: rows.map(r => r.deposit),
+  mode: 'markers',
+  type: 'scatter'
+}], { xaxis: {title:'Mass'}, yaxis: {title:'Volume'} });
+
+return rows;</textarea>
+      </div>
+
+      <div class="overlay-actions">
+        <button id="run-query" class="btn-primary">&#9654; Run</button>
+        <span id="query-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel Edit Modal -------------------------------------------------- -->
+  <div id="panel-edit-modal" class="overlay hidden">
+    <div class="overlay-inner pem-inner">
+      <div class="overlay-header">
+        <h2>Edit Panel</h2>
+        <button id="pem-close">&times;</button>
+      </div>
+
+      <div class="pem-field">
+        <label for="pem-title">Title</label>
+        <input type="text" id="pem-title" class="pem-input" placeholder="Panel title">
+      </div>
+
+      <div id="pem-sql-row" class="pem-field">
+        <label for="pem-sql">SQL Query <span class="hint-inline">(Ctrl+Enter to fetch)</span></label>
+        <textarea id="pem-sql" class="pem-sql" spellcheck="false" rows="7"></textarea>
+      </div>
+
+      <div id="pem-fetch-row" class="chart-builder-actions" style="margin-bottom:.75rem">
+        <button id="pem-fetch" class="btn-secondary">&#8635; Fetch Columns</button>
+        <span id="pem-fetch-status"></span>
+      </div>
+
+      <div id="pem-mapping-row">
+        <div id="pem-mapping" class="cb-mapping hidden">
+          <div class="mapping-grid">
+            <label>Chart type</label>
+            <select id="pem-type">
+              <option value="bar">Bar</option>
+              <option value="scatter">Scatter</option>
+              <option value="line">Line</option>
+              <option value="pie">Pie</option>
+            </select>
+
+            <label>X axis <span class="req">*</span></label>
+            <select id="pem-x"></select>
+
+            <label>Y axis <span class="req">*</span></label>
+            <select id="pem-y"></select>
+
+            <label>Color / Heatmap</label>
+            <select id="pem-color"><option value="">— none —</option></select>
+
+            <label>Size <small>(scatter)</small></label>
+            <select id="pem-size"><option value="">— none —</option></select>
+
+            <label>Hover label</label>
+            <select id="pem-text"><option value="">— none —</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="overlay-actions pem-actions">
+        <button id="pem-save" class="btn-primary">&#10003; Save</button>
+        <button id="pem-delete" class="btn-danger">&#128465; Delete Panel</button>
+        <button id="pem-reset" class="btn-danger">&#8635; Reset All</button>
+        <span id="pem-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="dashboard.js"></script>
+</body>
+</html>
