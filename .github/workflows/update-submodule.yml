@@ -24,14 +24,17 @@ jobs:
         run: |
           git submodule update --remote Databank/Rock-Capture-Database
 
-      - name: Commit and push if submodule changed
+      - name: Update deploy version
+        run: echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > deploy-version.txt
+
+      - name: Commit and push if changes exist
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Databank/Rock-Capture-Database
+          git add Databank/Rock-Capture-Database deploy-version.txt
           if git diff --staged --quiet; then
-            echo "Submodule already up to date, nothing to commit."
+            echo "Nothing to commit."
           else
-            git commit -m "chore: update database submodule [skip ci]"
+            git commit -m "chore: update database submodule and deploy version [skip ci]"
             git push
           fi

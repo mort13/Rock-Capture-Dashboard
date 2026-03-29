@@ -41,9 +41,18 @@ async function initDuckDB() {
   URL.revokeObjectURL(workerUrl);
   conn = await db.connect();
 
+  // Fetch deploy version for cache-busting (set by GitHub Actions on each deploy)
+  let deployVersion = 'v0';
+  try {
+    const resp = await fetch('deploy-version.txt');
+    if (resp.ok) deployVersion = (await resp.text()).trim();
+  } catch (e) {
+    console.warn('[DuckDB] deploy-version.txt not found, using fallback');
+  }
+
   // Register parquet files as absolute URLs so DuckDB's HTTP fetch works
   for (const [name, relPath] of Object.entries(PARQUET_FILES)) {
-    const absoluteUrl = new URL(relPath, location.href).href;
+    const absoluteUrl = new URL(relPath, location.href).href + '?v=' + deployVersion;
     console.log(`[DuckDB] registering ${name} →`, absoluteUrl);
     await db.registerFileURL(name + '.parquet', absoluteUrl, duckdb.DuckDBDataProtocol.HTTP, false);
     await conn.query(`CREATE VIEW ${name} AS SELECT * FROM read_parquet('${name}.parquet')`);
