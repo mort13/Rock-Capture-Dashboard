@@ -112,33 +112,20 @@ function esc(s) {
 // ── Dashboard Config ─────────────────────────────────────────────
 const CONFIG_KEY = 'rcd_dashboard_v1';
 
-const DEFAULT_CONFIG = {
-  version: 1,
-  panels: [
-    {
-      id: 'p-summary', type: 'summary', title: 'Database Summary',
-      sql: '', chart: null, size: null,
-    },
-    {
-      id: 'p-deposits', type: 'chart', title: 'Deposits by Type',
-      sql: `SELECT deposit, COUNT(*) AS n\nFROM scans\nGROUP BY deposit\nORDER BY n DESC`,
-      chart: { type: 'bar', x: 'deposit', y: 'n', color: '', size: '', text: '' },
-      size: null,
-    },
-    {
-      id: 'p-mass', type: 'chart', title: 'Average Mass by Deposit',
-      sql: `SELECT deposit, ROUND(AVG(mass), 1) AS avg_mass\nFROM scans\nWHERE mass IS NOT NULL\nGROUP BY deposit\nORDER BY avg_mass DESC`,
-      chart: { type: 'bar', x: 'deposit', y: 'avg_mass', color: '', size: '', text: '' },
-      size: null,
-    },
-    {
-      id: 'p-composition', type: 'chart', title: 'Composition Breakdown',
-      sql: `SELECT type, ROUND(SUM(amount), 2) AS total_amount\nFROM compositions\nWHERE type NOT IN ('inert_materials','none','Inert Materials')\nGROUP BY type\nORDER BY total_amount DESC\nLIMIT 15`,
-      chart: { type: 'pie', x: 'type', y: 'total_amount', color: '', size: '', text: '' },
-      size: null,
-    },
-  ],
-};
+// Populated at startup from default-config.json
+let DEFAULT_CONFIG = { version: 1, panels: [] };
+let CONFIG = null;
+
+async function loadDefaultConfig() {
+  try {
+    const res = await fetch('default-config.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    DEFAULT_CONFIG = await res.json();
+    console.log('[Config] Loaded default-config.json');
+  } catch (e) {
+    console.warn('[Config] Could not load default-config.json, using empty defaults:', e.message);
+  }
+}
 
 function loadConfig() {
   try {
@@ -154,8 +141,6 @@ function loadConfig() {
 function saveConfig() {
   localStorage.setItem(CONFIG_KEY, JSON.stringify(CONFIG));
 }
-
-let CONFIG = loadConfig();
 
 // ── toNum helper ─────────────────────────────────────────────────
 const toNum = v => (v === null || v === undefined) ? null : (typeof v === 'bigint' ? Number(v) : v);
@@ -685,6 +670,11 @@ async function runUserQuery() {
   setupChartBuilder();
   setupPanelEditModal();
   setupConfigIO();
+
+  // Load defaults from JSON file before building the dashboard
+  await loadDefaultConfig();
+  CONFIG = loadConfig();
+
   buildPanelShells();
   try {
     const summaryEl = document.getElementById('p-summary-body');
