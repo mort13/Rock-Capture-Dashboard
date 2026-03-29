@@ -235,6 +235,30 @@ textarea:focus { outline: none; border-color: var(--accent); }
   overflow: auto;
 }
 
+/* ── Schema Reference ───────────────────────────────────────────── */
+.schema-tables {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: .25rem;
+}
+.schema-table {
+  flex: 1;
+  min-width: 280px;
+}
+.schema-table h3 {
+  font-size: .9rem;
+  color: var(--accent);
+  font-family: monospace;
+  margin-bottom: .4rem;
+}
+.schema-ref .result-table td code {
+  background: var(--bg);
+  padding: .1rem .35rem;
+  border-radius: 3px;
+  font-size: .8rem;
+}
+
 /* ── Chart Builder ──────────────────────────────────────────────── */
 .chart-builder-actions {
   display: flex; align-items: center; gap: .8rem; margin-top: .7rem;

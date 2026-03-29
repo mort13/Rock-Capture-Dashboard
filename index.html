@@ -49,6 +49,7 @@
         <button class="tab active" data-tab="sql">SQL</button>
         <button class="tab" data-tab="chart">Chart Builder</button>
         <button class="tab" data-tab="js">JavaScript</button>
+        <button class="tab" data-tab="schema">Schema</button>
       </div>
 
       <!-- SQL tab -->
@@ -144,6 +145,47 @@ plot('user-chart', [{
 }], { xaxis: {title:'Mass'}, yaxis: {title:'Volume'} });
 
 return rows;</textarea>
+      </div>
+
+      <!-- Schema tab -->
+      <div id="tab-schema" class="tab-content schema-ref">
+        <p class="hint">Join the two tables on <code>capture_id</code>.</p>
+        <div class="schema-tables">
+          <div class="schema-table">
+            <h3>scans</h3>
+            <table class="result-table">
+              <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td><code>capture_id</code></td><td>VARCHAR</td><td>Unique scan identifier (UUID)</td></tr>
+                <tr><td><code>cluster_id</code></td><td>VARCHAR</td><td>Cluster grouping (UUID)</td></tr>
+                <tr><td><code>session_id</code></td><td>VARCHAR</td><td>Recording session ID</td></tr>
+                <tr><td><code>timestamp</code></td><td>TIMESTAMP</td><td>Date &amp; time of capture</td></tr>
+                <tr><td><code>user</code></td><td>VARCHAR</td><td>User who made the capture</td></tr>
+                <tr><td><code>deposit</code></td><td>VARCHAR</td><td>Deposit type (e.g. quartz, granite)</td></tr>
+                <tr><td><code>mass</code></td><td>DOUBLE</td><td>Rock mass (SCU)</td></tr>
+                <tr><td><code>volume</code></td><td>DOUBLE</td><td>Rock volume</td></tr>
+                <tr><td><code>resistance</code></td><td>DOUBLE</td><td>Resistance value</td></tr>
+                <tr><td><code>instability</code></td><td>DOUBLE</td><td>Instability value</td></tr>
+                <tr><td><code>location_system</code></td><td>VARCHAR</td><td>Star system (e.g. Pyro)</td></tr>
+                <tr><td><code>location_gravity_well</code></td><td>VARCHAR</td><td>Planet or moon</td></tr>
+                <tr><td><code>location_region</code></td><td>VARCHAR</td><td>Region (nullable)</td></tr>
+                <tr><td><code>location_place</code></td><td>VARCHAR</td><td>Specific place (nullable)</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="schema-table">
+            <h3>compositions</h3>
+            <table class="result-table">
+              <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td><code>capture_id</code></td><td>VARCHAR</td><td>Foreign key → scans.capture_id</td></tr>
+                <tr><td><code>type</code></td><td>VARCHAR</td><td>Material name (e.g. iron, silicon)</td></tr>
+                <tr><td><code>amount</code></td><td>DOUBLE</td><td>Percentage (0–100)</td></tr>
+                <tr><td><code>quality</code></td><td>DOUBLE</td><td>Material quality value</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <div class="overlay-actions">
