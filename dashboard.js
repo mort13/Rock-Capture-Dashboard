@@ -217,6 +217,28 @@ async function renderPanel(def) {
         values: rows.map(r => toNum(r[c.y])),
         hole: 0.4, textinfo: 'label+percent',
       }], {});
+    } else if (c.group) {
+      const groups = {};
+      for (const r of rows) {
+        const key = String(r[c.group]);
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(r);
+      }
+      const traces = Object.entries(groups).map(([name, gRows]) => {
+        const t = {
+          type: c.type,
+          name,
+          x: gRows.map(r => toNum(r[c.x])),
+          y: gRows.map(r => toNum(r[c.y])),
+          mode: c.type === 'scatter' ? 'markers' : undefined,
+        };
+        if (c.text) {
+          t.text = gRows.map(r => String(r[c.text]));
+          t.hovertemplate = `x: %{x}<br>y: %{y}<br>${esc(c.text)}: %{text}<extra></extra>`;
+        }
+        return t;
+      });
+      plot(def.id + '-chart', traces, { xaxis: { title: c.x }, yaxis: { title: c.y } });
     } else {
       const trace = {
         type: c.type,
@@ -287,9 +309,9 @@ function initResize(panelEl, panelId) {
 let _pemId = null, _pemRows = [];
 
 function fillPemSelects(cols) {
-  for (const id of ['pem-x', 'pem-y', 'pem-color', 'pem-size', 'pem-text']) {
+  for (const id of ['pem-x', 'pem-y', 'pem-color', 'pem-size', 'pem-text', 'pem-group']) {
     const sel = document.getElementById(id);
-    const none = ['pem-color', 'pem-size', 'pem-text'].includes(id);
+    const none = ['pem-color', 'pem-size', 'pem-text', 'pem-group'].includes(id);
     sel.innerHTML = none ? '<option value="">— none —</option>' : '';
     for (const col of cols) {
       const o = document.createElement('option');
@@ -316,6 +338,7 @@ function openPanelEdit(id) {
     document.getElementById('pem-color').value = def.chart.color || '';
     document.getElementById('pem-size').value  = def.chart.size  || '';
     document.getElementById('pem-text').value  = def.chart.text  || '';
+    document.getElementById('pem-group').value = def.chart.group || '';
   }
   document.getElementById('panel-edit-modal').classList.remove('hidden');
 }
@@ -352,6 +375,7 @@ function setupPanelEditModal() {
         document.getElementById('pem-color').value = cols.includes(def.chart.color) ? def.chart.color : '';
         document.getElementById('pem-size').value  = cols.includes(def.chart.size)  ? def.chart.size  : '';
         document.getElementById('pem-text').value  = cols.includes(def.chart.text)  ? def.chart.text  : '';
+        document.getElementById('pem-group').value = cols.includes(def.chart.group) ? def.chart.group : '';
       }
       document.getElementById('pem-mapping').classList.remove('hidden');
       st.textContent = `${_pemRows.length} rows — map axes below.`;
@@ -372,6 +396,7 @@ function setupPanelEditModal() {
         color: document.getElementById('pem-color').value,
         size:  document.getElementById('pem-size').value,
         text:  document.getElementById('pem-text').value,
+        group: document.getElementById('pem-group').value,
       };
     }
     saveConfig();
@@ -446,7 +471,7 @@ function setupConfigIO() {
 let _cbRows = [];
 
 function populateColumnSelects(cols) {
-  const withNone = ['cb-color', 'cb-size', 'cb-text'];
+  const withNone = ['cb-color', 'cb-size', 'cb-text', 'cb-group'];
   for (const id of ['cb-x', 'cb-y', ...withNone]) {
     const sel = document.getElementById(id);
     sel.innerHTML = withNone.includes(id) ? '<option value="">— none —</option>' : '';
@@ -492,7 +517,24 @@ function _cbPreviewPanel() {
   return panel;
 }
 
-function _cbBuildTrace(type, xCol, yCol, colorCol, sizeCol, textCol) {
+function _cbBuildTrace(type, xCol, yCol, colorCol, sizeCol, textCol, groupCol) {
+  if (groupCol) {
+    const groups = {};
+    for (const r of _cbRows) {
+      const key = String(r[groupCol]);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(r);
+    }
+    return Object.entries(groups).map(([name, gRows]) => {
+      const t = { type, name, x: gRows.map(r => toNum(r[xCol])), y: gRows.map(r => toNum(r[yCol])),
+        mode: type === 'scatter' ? 'markers' : undefined };
+      if (textCol) {
+        t.text = gRows.map(r => String(r[textCol]));
+        t.hovertemplate = `x: %{x}<br>y: %{y}<br>${esc(textCol)}: %{text}<extra></extra>`;
+      }
+      return t;
+    });
+  }
   const xs = _cbRows.map(r => toNum(r[xCol]));
   const ys = _cbRows.map(r => toNum(r[yCol]));
   const trace = { type, x: xs, y: ys, mode: type === 'scatter' ? 'markers' : undefined };
@@ -510,7 +552,7 @@ function _cbBuildTrace(type, xCol, yCol, colorCol, sizeCol, textCol) {
     trace.text = _cbRows.map(r => String(r[textCol]));
     trace.hovertemplate = `x: %{x}<br>y: %{y}<br>${esc(textCol)}: %{text}<extra></extra>`;
   }
-  return trace;
+  return [trace];
 }
 
 function setupChartBuilder() {
@@ -542,12 +584,13 @@ function setupChartBuilder() {
     const colorCol = document.getElementById('cb-color').value;
     const sizeCol  = document.getElementById('cb-size').value;
     const textCol  = document.getElementById('cb-text').value;
+    const groupCol = document.getElementById('cb-group').value;
     if (!xCol || !yCol) { status.textContent = 'Pick X and Y columns.'; return; }
 
     const panel = _cbPreviewPanel();
     document.getElementById('user-table').innerHTML = '';
-    const trace = _cbBuildTrace(type, xCol, yCol, colorCol, sizeCol, textCol);
-    plot('user-chart', [trace], { xaxis: { title: xCol }, yaxis: { title: yCol } });
+    const traces = _cbBuildTrace(type, xCol, yCol, colorCol, sizeCol, textCol, groupCol);
+    plot('user-chart', traces, { xaxis: { title: xCol }, yaxis: { title: yCol } });
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     status.textContent = `Plotted ${_cbRows.length} points.`;
     status.style.color = 'var(--accent2)';
@@ -562,6 +605,7 @@ function setupChartBuilder() {
     const colorCol = document.getElementById('cb-color').value;
     const sizeCol  = document.getElementById('cb-size').value;
     const textCol  = document.getElementById('cb-text').value;
+    const groupCol = document.getElementById('cb-group').value;
     const sql      = document.getElementById('chart-sql').value.trim();
     if (!xCol || !yCol) { status.textContent = 'Pick X and Y columns.'; return; }
 
@@ -569,7 +613,7 @@ function setupChartBuilder() {
     const def = {
       id, type: 'chart',
       title: `${type.charAt(0).toUpperCase() + type.slice(1)}: ${xCol} vs ${yCol}`,
-      sql, chart: { type, x: xCol, y: yCol, color: colorCol, size: sizeCol, text: textCol },
+      sql, chart: { type, x: xCol, y: yCol, color: colorCol, size: sizeCol, text: textCol, group: groupCol },
       size: null,
     };
     CONFIG.panels.push(def);
