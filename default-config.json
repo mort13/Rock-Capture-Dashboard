@@ -1,87 +1,60 @@
 {
-  "version": 1,
+  "version": 2,
   "panels": [
     {
       "id": "p-summary",
       "type": "summary",
       "title": "Database Summary",
+      "filterable": true,
       "sql": "",
-      "chart": null,
-      "size": {
-        "w": 463,
-        "h": 301
-      }
+      "chart": null
     },
     {
-      "id": "p-custom-1774782971800",
+      "id": "p-quality-counts",
       "type": "chart",
-      "title": "Line: rock_count vs frequency",
-      "sql": "SELECT \n  rock_count,\n  COUNT(*) AS frequency\nFROM (\n  SELECT cluster_id, COUNT(*) AS rock_count\n  FROM scans\n  GROUP BY cluster_id\n)\nGROUP BY rock_count\nORDER BY rock_count",
-      "chart": {
-        "type": "line",
-        "x": "rock_count",
-        "y": "frequency",
-        "color": "",
-        "size": "",
-        "text": ""
-      },
-      "size": {
-        "w": 461,
-        "h": 313
-      }
-    },
-    {
-      "id": "p-custom-1774785560514",
-      "type": "chart",
-      "title": "Bar: quality_bin vs material_count",
-      "sql": "SELECT \n  CAST(FLOOR(c.quality / 50) * 50 AS INT) AS quality_bin,\n  COUNT(*) AS material_count\nFROM compositions c\nWHERE type NOT IN ('inert_materials','none','Inert Materials')\nGROUP BY CAST(FLOOR(c.quality / 50) * 50 AS INT)\nORDER BY quality_bin",
+      "title": "Quality vs Counts",
+      "filterable": true,
+      "defaultKey": "quality_vs_counts",
+      "sql": "",
       "chart": {
         "type": "bar",
         "x": "quality_bin",
-        "y": "material_count",
+        "y": "count",
         "color": "",
         "size": "",
         "text": ""
-      },
-      "size": {
-        "w": 395,
-        "h": 314
       }
     },
     {
-      "id": "p-custom-1774785685961",
+      "id": "p-material-volume",
       "type": "chart",
-      "title": "Bar: quality_bin vs total_volume",
-      "sql": "SELECT \n  CAST(FLOOR(c.quality / 50) * 50 AS INT) AS quality_bin,\n  SUM(s.volume * c.amount / 100) AS total_volume\nFROM scans s\nJOIN compositions c ON s.capture_id = c.capture_id\nWHERE type NOT IN ('inert_materials','none','Inert Materials')\nGROUP BY CAST(FLOOR(c.quality / 50) * 50 AS INT)\nORDER BY quality_bin",
+      "title": "Material Type vs Volume",
+      "filterable": true,
+      "defaultKey": "material_vs_volume",
+      "sql": "",
       "chart": {
         "type": "bar",
-        "x": "quality_bin",
-        "y": "total_volume",
+        "x": "material_type",
+        "y": "material_volume",
         "color": "",
         "size": "",
         "text": ""
-      },
-      "size": {
-        "w": 405,
-        "h": 310
       }
     },
     {
-      "id": "p-custom-1774793580434",
+      "id": "p-deposit-pie",
       "type": "chart",
-      "title": "Bar: gravity_well vs scan_count",
-      "sql": "SELECT \n  system,\n  gravity_well,\n  COUNT(*) AS scan_count\nFROM scans\nGROUP BY system, gravity_well\nORDER BY scan_count DESC",
+      "title": "Deposit Distribution",
+      "filterable": true,
+      "defaultKey": "deposit_pie",
+      "sql": "",
       "chart": {
-        "type": "bar",
-        "x": "gravity_well",
-        "y": "scan_count",
+        "type": "pie",
+        "x": "deposit",
+        "y": "count",
         "color": "",
         "size": "",
-        "text": "system"
-      },
-      "size": {
-        "w": 507,
-        "h": 311
+        "text": ""
       }
     }
   ]

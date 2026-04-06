@@ -34,8 +34,32 @@
     </div>
   </header>
 
-  <!-- Dashboard panels (rendered dynamically by dashboard.js) ---------- -->
-  <main id="dashboard"></main>
+  <!-- App layout with sidebar + dashboard -------------------------------- -->
+  <div class="app-layout">
+    <aside id="sidebar" class="sidebar collapsed">
+      <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle filters">&#9654;</button>
+      <div class="sidebar-content">
+        <h3>Filters</h3>
+        <div class="filter-group">
+          <label for="filter-location">Location</label>
+          <div class="filter-input-wrap">
+            <input type="text" id="filter-location" class="filter-input" placeholder="e.g. Bloom, Pyro" autocomplete="off">
+            <div id="autocomplete-location" class="autocomplete-list hidden"></div>
+          </div>
+        </div>
+        <div class="filter-group">
+          <label for="filter-material">Material Type</label>
+          <div class="filter-input-wrap">
+            <input type="text" id="filter-material" class="filter-input" placeholder="e.g. iron, silicon" autocomplete="off">
+            <div id="autocomplete-material" class="autocomplete-list hidden"></div>
+          </div>
+        </div>
+        <button id="apply-filters" class="btn-primary" style="margin-top:1rem;width:100%">Apply Filters</button>
+        <button id="clear-filters" class="btn-secondary" style="margin-top:.5rem;width:100%">Clear</button>
+      </div>
+    </aside>
+    <main id="dashboard"></main>
+  </div>
 
   <!-- Query Editor Overlay ----------------------------------------------- -->
   <div id="overlay" class="overlay hidden">

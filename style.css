@@ -60,6 +60,8 @@ header h1 { font-size: 1.3rem; letter-spacing: .03em; }
   align-items: flex-start;
   gap: 1.2rem;
   padding: 1.5rem 2rem;
+  flex: 1;
+  min-width: 0;
 }
 .panel {
   background: var(--surface);
@@ -349,3 +351,105 @@ textarea:focus { outline: none; border-color: var(--accent); }
 .pem-sql:focus { outline: none; border-color: var(--accent); }
 
 .pem-actions { flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
+
+/* ── App Layout & Sidebar ───────────────────────────────────── */
+.app-layout {
+  display: flex;
+  min-height: calc(100vh - 57px);
+}
+
+.sidebar {
+  width: 260px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+  transition: width 0.25s ease;
+  overflow: hidden;
+}
+
+.sidebar.collapsed {
+  width: 36px;
+}
+
+.sidebar.collapsed .sidebar-content {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.sidebar-toggle:hover { background: rgba(88,166,255,.1); }
+
+.sidebar-content {
+  padding: 1rem;
+  transition: opacity 0.2s ease;
+}
+
+.sidebar-content h3 {
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
+  color: var(--text);
+}
+
+.filter-group {
+  margin-bottom: 1rem;
+}
+.filter-group label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 0.3rem;
+}
+
+.filter-input-wrap {
+  position: relative;
+}
+
+.filter-input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.85rem;
+}
+.filter-input:focus { outline: none; border-color: var(--accent); }
+
+.autocomplete-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 50;
+}
+.autocomplete-list.hidden { display: none; }
+
+.autocomplete-item {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--text);
+}
+.autocomplete-item:hover {
+  background: rgba(88,166,255,.12);
+  color: var(--accent);
+}

@@ -14,6 +14,10 @@ const PARQUET_FILES = {
 let db = null;   // DuckDB instance
 let conn = null; // DuckDB connection
 
+// ── Filter state ─────────────────────────────────────────────────
+let filters = { location: [], material: [] };
+let autocompleteData = { location: [], material: [] };
+
 // ── DuckDB bootstrap ─────────────────────────────────────────────
 async function initDuckDB() {
   const DIST = 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev20.0/dist/';
@@ -154,6 +158,73 @@ function saveConfig() {
 // ── toNum helper ─────────────────────────────────────────────────
 const toNum = v => (v === null || v === undefined) ? null : (typeof v === 'bigint' ? Number(v) : v);
 
+// ── Filter helpers ───────────────────────────────────────────────
+function parseFilterInput(value) {
+  return value.split(',').map(v => v.trim()).filter(v => v.length > 0);
+}
+
+function escapeSQLVal(v) {
+  return "'" + v.replace(/'/g, "''") + "'";
+}
+
+function hasActiveFilters() {
+  return filters.location.length > 0 || filters.material.length > 0;
+}
+
+function buildFilterWhere() {
+  const parts = [];
+  if (filters.location.length > 0) {
+    const vals = filters.location.map(escapeSQLVal).join(',');
+    parts.push(`(s.gravity_well IN (${vals}) OR s.system IN (${vals}))`);
+  }
+  if (filters.material.length > 0) {
+    const vals = filters.material.map(escapeSQLVal).join(',');
+    parts.push(`c.type IN (${vals})`);
+  }
+  return parts.length > 0 ? 'AND ' + parts.join(' AND ') : '';
+}
+
+function getDefaultSQL(key) {
+  const fw = buildFilterWhere();
+  switch (key) {
+    case 'quality_vs_counts':
+      return `SELECT CAST(FLOOR(c.quality / 10) * 10 AS INT) AS quality_bin,
+                     COUNT(*) AS count
+              FROM compositions c
+              JOIN scans s ON s.capture_id = c.capture_id
+              WHERE c.type NOT IN ('inert_materials','none','Inert Materials')
+              ${fw}
+              GROUP BY quality_bin
+              ORDER BY quality_bin`;
+    case 'material_vs_volume':
+      return `SELECT c.type AS material_type,
+                     ROUND(SUM(s.volume * c.amount / 100), 2) AS material_volume
+              FROM scans s
+              JOIN compositions c ON s.capture_id = c.capture_id
+              WHERE c.type NOT IN ('inert_materials','none','Inert Materials')
+              ${fw}
+              GROUP BY c.type
+              ORDER BY material_volume DESC`;
+    case 'deposit_pie':
+      return `SELECT s.deposit,
+                     COUNT(*) AS count
+              FROM scans s
+              JOIN compositions c ON s.capture_id = c.capture_id
+              WHERE c.type NOT IN ('inert_materials','none','Inert Materials')
+              ${fw}
+              GROUP BY s.deposit
+              ORDER BY count DESC`;
+    default:
+      return null;
+  }
+}
+
+async function renderFilterablePanels() {
+  for (const def of CONFIG.panels) {
+    if (def.filterable) await renderPanel(def);
+  }
+}
+
 // ── Panel DOM builder ─────────────────────────────────────────────
 function makePanel(def) {
   const sec = document.createElement('section');
@@ -188,10 +259,23 @@ async function renderPanel(def) {
     if (!el) return;
     el.textContent = 'Loading…';
     try {
-      const [sc] = await query('SELECT COUNT(*) AS n FROM scans');
-      const [cc] = await query('SELECT COUNT(*) AS n FROM compositions');
-      const [dp] = await query('SELECT COUNT(DISTINCT deposit) AS n FROM scans');
-      const [us] = await query('SELECT COUNT(DISTINCT user) AS n FROM scans');
+      let scSQL, ccSQL, dpSQL, usSQL;
+      if (def.filterable && hasActiveFilters()) {
+        const fw = buildFilterWhere();
+        scSQL = `SELECT COUNT(DISTINCT s.capture_id) AS n FROM scans s JOIN compositions c ON s.capture_id = c.capture_id WHERE 1=1 ${fw}`;
+        ccSQL = `SELECT COUNT(*) AS n FROM compositions c JOIN scans s ON s.capture_id = c.capture_id WHERE 1=1 ${fw}`;
+        dpSQL = `SELECT COUNT(DISTINCT s.deposit) AS n FROM scans s JOIN compositions c ON s.capture_id = c.capture_id WHERE 1=1 ${fw}`;
+        usSQL = `SELECT COUNT(DISTINCT s.user) AS n FROM scans s JOIN compositions c ON s.capture_id = c.capture_id WHERE 1=1 ${fw}`;
+      } else {
+        scSQL = 'SELECT COUNT(*) AS n FROM scans';
+        ccSQL = 'SELECT COUNT(*) AS n FROM compositions';
+        dpSQL = 'SELECT COUNT(DISTINCT deposit) AS n FROM scans';
+        usSQL = 'SELECT COUNT(DISTINCT "user") AS n FROM scans';
+      }
+      const [sc] = await query(scSQL);
+      const [cc] = await query(ccSQL);
+      const [dp] = await query(dpSQL);
+      const [us] = await query(usSQL);
       el.innerHTML = '<div class="stat-grid">'
         + chip('Scans', sc.n) + chip('Compositions', cc.n)
         + chip('Deposit types', dp.n) + chip('Users', us.n)
@@ -202,12 +286,13 @@ async function renderPanel(def) {
 
   const chartEl = document.getElementById(def.id + '-chart');
   if (!chartEl) return;
-  if (!def.sql) {
+  const sql = def.defaultKey ? getDefaultSQL(def.defaultKey) : def.sql;
+  if (!sql) {
     chartEl.innerHTML = '<span class="panel-placeholder">No query — click ⚙ to configure</span>';
     return;
   }
   try {
-    const rows = await query(def.sql);
+    const rows = await query(sql);
     const c = def.chart;
     if (!c || !c.x || !c.y) { chartEl.innerHTML = '<span class="panel-placeholder">Map axes via ⚙</span>'; return; }
 
@@ -325,7 +410,7 @@ function openPanelEdit(id) {
   const def = CONFIG.panels.find(p => p.id === id);
   if (!def) return;
   document.getElementById('pem-title').value = def.title;
-  document.getElementById('pem-sql').value   = def.sql || '';
+  document.getElementById('pem-sql').value   = (def.defaultKey ? getDefaultSQL(def.defaultKey) : def.sql) || '';
   document.getElementById('pem-mapping').classList.add('hidden');
   document.getElementById('pem-fetch-status').textContent = '';
   document.getElementById('pem-status').textContent = '';
@@ -717,12 +802,95 @@ async function runUserQuery() {
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// ── Sidebar & Filters ────────────────────────────────────────────
+function setupSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const toggle  = document.getElementById('sidebar-toggle');
+
+  toggle.addEventListener('click', () => {
+    sidebar.classList.toggle('collapsed');
+    toggle.innerHTML = sidebar.classList.contains('collapsed') ? '&#9654;' : '&#9664;';
+  });
+
+  setupAutocomplete('filter-location', 'autocomplete-location', 'location');
+  setupAutocomplete('filter-material', 'autocomplete-material', 'material');
+
+  document.getElementById('apply-filters').addEventListener('click', applyFilters);
+  document.getElementById('clear-filters').addEventListener('click', () => {
+    document.getElementById('filter-location').value = '';
+    document.getElementById('filter-material').value = '';
+    filters = { location: [], material: [] };
+    renderFilterablePanels();
+  });
+
+  document.querySelectorAll('.filter-input').forEach(el => {
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') applyFilters();
+    });
+  });
+}
+
+function applyFilters() {
+  filters.location = parseFilterInput(document.getElementById('filter-location').value);
+  filters.material = parseFilterInput(document.getElementById('filter-material').value);
+  renderFilterablePanels();
+}
+
+function setupAutocomplete(inputId, listId, dataKey) {
+  const input = document.getElementById(inputId);
+  const list  = document.getElementById(listId);
+
+  input.addEventListener('input', () => {
+    const parts   = input.value.split(',');
+    const current = parts[parts.length - 1].trim().toLowerCase();
+    if (!current) { list.classList.add('hidden'); return; }
+
+    const existing = parts.slice(0, -1).map(p => p.trim().toLowerCase());
+    const matches  = autocompleteData[dataKey]
+      .filter(v => v.toLowerCase().includes(current) && !existing.includes(v.toLowerCase()))
+      .slice(0, 10);
+
+    if (matches.length === 0) { list.classList.add('hidden'); return; }
+
+    list.innerHTML = matches.map(v => `<div class="autocomplete-item">${esc(v)}</div>`).join('');
+    list.classList.remove('hidden');
+
+    list.querySelectorAll('.autocomplete-item').forEach(item => {
+      item.addEventListener('mousedown', e => {
+        e.preventDefault();
+        parts[parts.length - 1] = ' ' + item.textContent;
+        input.value = parts.join(',').replace(/^,\s*/, '') + ', ';
+        list.classList.add('hidden');
+        input.focus();
+      });
+    });
+  });
+
+  input.addEventListener('blur', () => {
+    setTimeout(() => list.classList.add('hidden'), 150);
+  });
+}
+
+async function populateAutocomplete() {
+  try {
+    const wells   = await query("SELECT DISTINCT gravity_well AS val FROM scans WHERE gravity_well IS NOT NULL ORDER BY val");
+    const systems = await query("SELECT DISTINCT system AS val FROM scans WHERE system IS NOT NULL ORDER BY val");
+    autocompleteData.location = [...new Set([...wells.map(r => r.val), ...systems.map(r => r.val)])].sort();
+
+    const mats = await query("SELECT DISTINCT type AS val FROM compositions WHERE type NOT IN ('inert_materials','none','Inert Materials') ORDER BY val");
+    autocompleteData.material = mats.map(r => r.val);
+  } catch (e) {
+    console.warn('[Autocomplete] Failed to populate:', e.message);
+  }
+}
+
 // ── Boot ─────────────────────────────────────────────────────────
 (async function main() {
   setupOverlay();
   setupChartBuilder();
   setupPanelEditModal();
   setupConfigIO();
+  setupSidebar();
 
   // Load defaults from JSON file before building the dashboard
   await loadDefaultConfig();
@@ -733,6 +901,7 @@ async function runUserQuery() {
     const summaryEl = document.getElementById('p-summary-body');
     if (summaryEl) summaryEl.textContent = 'Initializing DuckDB…';
     await initDuckDB();
+    await populateAutocomplete();
     for (const def of CONFIG.panels) renderPanel(def);
   } catch (err) {
     const summaryEl = document.getElementById('p-summary-body');
