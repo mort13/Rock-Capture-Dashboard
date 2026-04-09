@@ -51,7 +51,7 @@ async function registerParquetFile(url, viewName) {
  *   "fileCount": 42,
  *   "files": [
  *     {
- *       "key": "type/year/month/day/userId/sessionId/filename.parquet",
+ *       "key": "2026/04/09/userId/sessionId/filename.parquet",
  *       "type": "scans|compositions",
  *       "userId": "...",
  *       "sessionId": "...",
@@ -74,14 +74,49 @@ async function loadParquetsFromManifest() {
     const fileCount = manifest.files?.length || 0;
     console.log(`[DuckDB] Loaded manifest with ${fileCount} parquets (generated ${manifest.generatedAt})`);
     
+    // Track which collection types we have
+    const collectionTypes = new Set();
+    
     for (const file of manifest.files || []) {
-      const fullUrl = `${R2_BASE_URL}/${file.key}`;
+      // Build full URL: baseUrl + type + key
+      const fullUrl = `${R2_BASE_URL}/${file.type}/${file.key}`;
       // Generate a unique view name: type_userId_sessionId_batchN
-      const viewName = `${file.type}_${file.userId?.slice(0, 8)}_${file.sessionId?.slice(0, 8)}_batch${file.batchNumber}`;
+      const viewName = `${file.type}_batch_${file.userId?.slice(0, 8)}_${file.sessionId?.slice(0, 8)}_${file.batchNumber}`;
+      collectionTypes.add(file.type);
       await registerParquetFile(fullUrl, viewName);
+    }
+    
+    // Create union views for each collection type (scans, compositions)
+    // so the dashboard can query them with the original table names
+    for (const collType of collectionTypes) {
+      await createUnionView(collType, manifest.files);
     }
   } catch (e) {
     console.error('[DuckDB] Failed to load manifest:', e.message);
+  }
+}
+
+/**
+ * Create a union view that combines all batches of a given type
+ * This allows queries like "SELECT * FROM scans" or "SELECT * FROM compositions"
+ */
+async function createUnionView(collectionType, files) {
+  const batchViews = files
+    .filter(f => f.type === collectionType)
+    .map(f => {
+      const viewName = `${f.type}_batch_${f.userId?.slice(0, 8)}_${f.sessionId?.slice(0, 8)}_${f.batchNumber}`;
+      return viewName;
+    });
+  
+  if (batchViews.length === 0) return;
+  
+  const unionQuery = batchViews.map(v => `SELECT * FROM ${v}`).join(' UNION ALL ');
+  try {
+    await conn.query(`DROP VIEW IF EXISTS ${collectionType}`);
+    await conn.query(`CREATE VIEW ${collectionType} AS ${unionQuery}`);
+    console.log(`[DuckDB] ✓ Created union view: ${collectionType} (${batchViews.length} batches)`);
+  } catch (e) {
+    console.error(`[DuckDB] ✗ Failed to create union view ${collectionType}:`, e.message);
   }
 }
 
