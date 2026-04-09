@@ -6,13 +6,96 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 
 // Base URL of your Cloudflare R2 bucket (public access or custom domain)
-// e.g. 'https://pub-<hash>.r2.dev' or 'https://data.your-domain.com'
 const R2_BASE_URL = 'https://pub-f15ce98d2f554311b0543bcb6562b082.r2.dev';
 
-const PARQUET_FILES = {
-  scans:        `${R2_BASE_URL}/scans.parquet`,
-  compositions: `${R2_BASE_URL}/compositions.parquet`,
-};
+// Nested directory structure with dates, userID, and sessionID
+// Example: compositions/2026/04/09/<userID>/<sessionID>/compositions_batch001.parquet
+const R2_COLLECTION = 'compositions';
+
+// If you create a manifest.json file listing all available parquets, reference it here
+// Otherwise leave as null and use PARQUET_FILES below or loadParquetsFromPattern()
+const R2_MANIFEST_URL = `${R2_BASE_URL}/manifest.json`;
+
+// Static parquet files to load (if your data doesn't have dynamic paths)
+const PARQUET_FILES = {};
+
+// ── R2 Path Helpers ──────────────────────────────────────────────
+/**
+ * Build a full R2 URL for a parquet file using the nested structure
+ * Example: r2Url('2026', '04', '09', 'user-123', 'session-456', 'compositions_batch001')
+ */
+function r2Url(year, month, day, userId, sessionId, fileName) {
+  return `${R2_BASE_URL}/${R2_COLLECTION}/${year}/${month}/${day}/${userId}/${sessionId}/${fileName}.parquet`;
+}
+
+/**
+ * Register a single parquet file with DuckDB
+ */
+async function registerParquetFile(url, viewName) {
+  try {
+    console.log(`[DuckDB] registering ${viewName} →`, url);
+    await db.registerFileURL(viewName + '.parquet', url, duckdb.DuckDBDataProtocol.HTTP, false);
+    await conn.query(`CREATE VIEW ${viewName} AS SELECT * FROM read_parquet('${viewName}.parquet')`);
+    console.log(`[DuckDB] ✓ ${viewName} registered`);
+  } catch (e) {
+    console.error(`[DuckDB] ✗ Failed to register ${viewName}:`, e.message);
+  }
+}
+
+/**
+ * Load all parquets from a manifest.json file
+ * Manifest format:
+ * {
+ *   "version": "1.0",
+ *   "generatedAt": "2026-04-09T00:00:00Z",
+ *   "fileCount": 42,
+ *   "files": [
+ *     {
+ *       "key": "type/year/month/day/userId/sessionId/filename.parquet",
+ *       "type": "scans|compositions",
+ *       "userId": "...",
+ *       "sessionId": "...",
+ *       "batchNumber": 1,
+ *       "uploadedAt": "2026-04-09T..."
+ *     },
+ *     ...
+ *   ]
+ * }
+ */
+async function loadParquetsFromManifest() {
+  if (!R2_MANIFEST_URL) {
+    console.warn('[DuckDB] No manifest URL configured');
+    return;
+  }
+  try {
+    const res = await fetch(R2_MANIFEST_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const manifest = await res.json();
+    const fileCount = manifest.files?.length || 0;
+    console.log(`[DuckDB] Loaded manifest with ${fileCount} parquets (generated ${manifest.generatedAt})`);
+    
+    for (const file of manifest.files || []) {
+      const fullUrl = `${R2_BASE_URL}/${file.key}`;
+      // Generate a unique view name: type_userId_sessionId_batchN
+      const viewName = `${file.type}_${file.userId?.slice(0, 8)}_${file.sessionId?.slice(0, 8)}_batch${file.batchNumber}`;
+      await registerParquetFile(fullUrl, viewName);
+    }
+  } catch (e) {
+    console.error('[DuckDB] Failed to load manifest:', e.message);
+  }
+}
+
+/**
+ * Load parquets matching a specific date/user/session pattern
+ * Example:
+ *   loadParquetsFromPattern('2026/04/09') — load all from today
+ *   loadParquetsFromPattern('2026/04/09', 'user-123') — load specific user
+ *   loadParquetsFromPattern(null, null, 'session-456') — load specific session
+ */
+async function loadParquetsFromPattern(datePattern = null, userId = null, sessionId = null) {
+  console.warn('[DuckDB] loadParquetsFromPattern() requires manual URL list or a manifest.');
+  console.warn('Use loadParquetsFromManifest(), registerParquetFile(), or R2 S3 list API');
+}
 
 // ── Globals ──────────────────────────────────────────────────────
 let db = null;   // DuckDB instance
@@ -49,21 +132,16 @@ async function initDuckDB() {
   URL.revokeObjectURL(workerUrl);
   conn = await db.connect();
 
-  // Fetch deploy version for cache-busting (set by GitHub Actions on each deploy)
-  let deployVersion = 'v0';
-  try {
-    const resp = await fetch('deploy-version.txt');
-    if (resp.ok) deployVersion = (await resp.text()).trim();
-  } catch (e) {
-    console.warn('[DuckDB] deploy-version.txt not found, using fallback');
-  }
-
-  // Register parquet files as absolute URLs so DuckDB's HTTP fetch works
-  for (const [name, relPath] of Object.entries(PARQUET_FILES)) {
-    const absoluteUrl = new URL(relPath, location.href).href + '?v=' + deployVersion;
-    console.log(`[DuckDB] registering ${name} →`, absoluteUrl);
-    await db.registerFileURL(name + '.parquet', absoluteUrl, duckdb.DuckDBDataProtocol.HTTP, false);
-    await conn.query(`CREATE VIEW ${name} AS SELECT * FROM read_parquet('${name}.parquet')`);
+  // Load parquets from manifest or add them manually via registerParquetFile()
+  if (R2_MANIFEST_URL) {
+    await loadParquetsFromManifest();
+  } else if (Object.keys(PARQUET_FILES).length > 0) {
+    // Fallback to static PARQUET_FILES if defined
+    for (const [name, url] of Object.entries(PARQUET_FILES)) {
+      await registerParquetFile(url, name);
+    }
+  } else {
+    console.warn('[DuckDB] No parquets configured. Add a manifest or call registerParquetFile() manually.');
   }
 }
 

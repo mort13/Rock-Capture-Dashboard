@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "generatedAt": "2026-04-09T00:00:00Z",
+  "fileCount": 2,
+  "files": [
+    {
+      "key": "compositions/2026/04/09/c013bacc-0831-450a-8f12-85a9d1840b27/aa881327-901c-492b-8fa8-3a91991d8eb4/compositions_batch001.parquet",
+      "type": "compositions",
+      "userId": "c013bacc-0831-450a-8f12-85a9d1840b27",
+      "sessionId": "aa881327-901c-492b-8fa8-3a91991d8eb4",
+      "batchNumber": 1,
+      "uploadedAt": "2026-04-09T10:14:58Z"
+    },
+    {
+      "key": "scans/2026/04/09/user123/session-abc/scans_batch001.parquet",
+      "type": "scans",
+      "userId": "user123",
+      "sessionId": "session-abc",
+      "batchNumber": 1,
+      "uploadedAt": "2026-04-09T10:15:00Z"
+    }
+  ]
+}
