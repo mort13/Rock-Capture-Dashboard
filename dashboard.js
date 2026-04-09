@@ -108,7 +108,12 @@ async function createUnionView(collectionType, files) {
       return viewName;
     });
   
-  if (batchViews.length === 0) return;
+  if (batchViews.length === 0) {
+    console.warn(`[DuckDB] No batch views found for type: ${collectionType}`);
+    return;
+  }
+  
+  console.log(`[DuckDB] Creating union view for ${collectionType} from batches:`, batchViews);
   
   const unionQuery = batchViews.map(v => `SELECT * FROM ${v}`).join(' UNION ALL ');
   try {
@@ -117,6 +122,7 @@ async function createUnionView(collectionType, files) {
     console.log(`[DuckDB] ✓ Created union view: ${collectionType} (${batchViews.length} batches)`);
   } catch (e) {
     console.error(`[DuckDB] ✗ Failed to create union view ${collectionType}:`, e.message);
+    console.error(`[DuckDB] Attempted query: CREATE VIEW ${collectionType} AS ${unionQuery}`);
   }
 }
 
@@ -198,6 +204,30 @@ async function query(sql) {
   }
   return rows;
 }
+
+// ── Debug helpers ────────────────────────────────────────────────
+async function debugListViews() {
+  try {
+    const result = await query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'memory'`);
+    console.table(result);
+    return result;
+  } catch (e) {
+    console.error('Query failed:', e.message);
+  }
+}
+
+async function debugListAllTables() {
+  try {
+    const result = await query(`SELECT * FROM duckdb_tables()`);
+    console.table(result);
+    return result;
+  } catch (e) {
+    console.error('Query failed:', e.message);
+  }
+}
+
+window.debugListViews = debugListViews;
+window.debugListAllTables = debugListAllTables;
 
 // ── Helper: Plotly wrapper exposed to user JS snippets ───────────
 function plot(divId, data, layout = {}, config = {}) {
