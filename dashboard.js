@@ -233,6 +233,19 @@ window.debugListViews = debugListViews;
 window.debugListAllTables = debugListAllTables;
 window.query = query;
 
+// Show columns and sample data
+window.debugBatchSchema = async (batchName) => {
+  console.log(`\n=== Schema for ${batchName} ===`);
+  const schema = await query(`DESCRIBE ${batchName}`);
+  console.table(schema);
+  
+  console.log(`\n=== First rows from ${batchName} ===`);
+  const sample = await query(`SELECT * FROM ${batchName} LIMIT 3`);
+  console.table(sample);
+  
+  return { schema, sample };
+};
+
 // ── Helper: Plotly wrapper exposed to user JS snippets ───────────
 function plot(divId, data, layout = {}, config = {}) {
   const defaults = {
