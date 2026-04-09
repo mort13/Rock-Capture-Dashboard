@@ -13,7 +13,7 @@ const R2_BASE_URL = 'https://pub-f15ce98d2f554311b0543bcb6562b082.r2.dev';
 const R2_COLLECTION = 'compositions';
 
 // If you create a manifest.json file listing all available parquets, reference it here
-// Otherwise leave as null and use PARQUET_FILES below or loadParquetsFromPattern()
+// Use local path './manifest.json' for local testing, or full R2 URL for production
 const R2_MANIFEST_URL = `${R2_BASE_URL}/manifest.json`;
 
 // Static parquet files to load (if your data doesn't have dynamic paths)
@@ -78,8 +78,8 @@ async function loadParquetsFromManifest() {
     const collectionTypes = new Set();
     
     for (const file of manifest.files || []) {
-      // Build full URL: baseUrl + type + key
-      const fullUrl = `${R2_BASE_URL}/${file.type}/${file.key}`;
+      // Build full URL: baseUrl + key (key already contains the full path)
+      const fullUrl = `${R2_BASE_URL}/${file.key}`;
       // Generate a unique view name: type_userId_sessionId_batchN
       const viewName = `${file.type}_batch_${file.userId?.slice(0, 8)}_${file.sessionId?.slice(0, 8)}_${file.batchNumber}`;
       collectionTypes.add(file.type);
@@ -228,6 +228,7 @@ async function debugListAllTables() {
 
 window.debugListViews = debugListViews;
 window.debugListAllTables = debugListAllTables;
+window.query = query;
 
 // ── Helper: Plotly wrapper exposed to user JS snippets ───────────
 function plot(divId, data, layout = {}, config = {}) {
