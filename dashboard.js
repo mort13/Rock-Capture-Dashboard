@@ -5,9 +5,13 @@
    ================================================================ */
 import * as duckdb from '@duckdb/duckdb-wasm';
 
+// Base URL of your Cloudflare R2 bucket (public access or custom domain)
+// e.g. 'https://pub-<hash>.r2.dev' or 'https://data.your-domain.com'
+const R2_BASE_URL = 'https://pub-f15ce98d2f554311b0543bcb6562b082.r2.dev';
+
 const PARQUET_FILES = {
-  scans:        'Databank/Rock-Capture-Database/scans.parquet',
-  compositions: 'Databank/Rock-Capture-Database/compositions.parquet',
+  scans:        `${R2_BASE_URL}/scans.parquet`,
+  compositions: `${R2_BASE_URL}/compositions.parquet`,
 };
 
 // ── Globals ──────────────────────────────────────────────────────
