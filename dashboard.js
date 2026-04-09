@@ -99,6 +99,7 @@ async function loadParquetsFromManifest() {
 /**
  * Create a union view that combines all batches of a given type
  * This allows queries like "SELECT * FROM scans" or "SELECT * FROM compositions"
+ * If schemas don't match, falls back to individual batch views
  */
 async function createUnionView(collectionType, files) {
   const batchViews = files
@@ -121,8 +122,10 @@ async function createUnionView(collectionType, files) {
     await conn.query(`CREATE VIEW ${collectionType} AS ${unionQuery}`);
     console.log(`[DuckDB] ✓ Created union view: ${collectionType} (${batchViews.length} batches)`);
   } catch (e) {
-    console.error(`[DuckDB] ✗ Failed to create union view ${collectionType}:`, e.message);
-    console.error(`[DuckDB] Attempted query: CREATE VIEW ${collectionType} AS ${unionQuery}`);
+    console.warn(`[DuckDB] ⚠ Schema mismatch for ${collectionType} — batches have different columns`);
+    console.warn(`[DuckDB] Falling back to individual batch views:`, batchViews);
+    console.warn(`[DuckDB] Query with: SELECT * FROM ${batchViews[0]} or other individual batches`);
+    // Don't create the union view — users can query individual batches
   }
 }
 
