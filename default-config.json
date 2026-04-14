@@ -56,6 +56,22 @@
         "size": "",
         "text": ""
       }
+    },
+    {
+      "id": "p-scans-per-user",
+      "type": "chart",
+      "title": "Scans per User",
+      "filterable": true,
+      "defaultKey": "scans_per_user",
+      "sql": "",
+      "chart": {
+        "type": "bar",
+        "x": "user_name",
+        "y": "scan_count",
+        "color": "",
+        "size": "",
+        "text": ""
+      }
     }
   ]
 }
