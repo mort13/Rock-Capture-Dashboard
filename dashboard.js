@@ -436,12 +436,12 @@ async function renderPanel(def) {
         scSQL = `SELECT COUNT(DISTINCT s.capture_id) AS n FROM scans s JOIN compositions c ON s.capture_id = c.capture_id WHERE 1=1 ${fw}`;
         ccSQL = `SELECT COUNT(*) AS n FROM compositions c JOIN scans s ON s.capture_id = c.capture_id WHERE 1=1 ${fw}`;
         dpSQL = `SELECT COUNT(DISTINCT s.deposit) AS n FROM scans s JOIN compositions c ON s.capture_id = c.capture_id WHERE 1=1 ${fw}`;
-        usSQL = `SELECT COUNT(DISTINCT s.userID) AS n FROM scans s JOIN compositions c ON s.capture_id = c.capture_id WHERE 1=1 ${fw}`;
+        usSQL = `SELECT COUNT(DISTINCT s.user_id) AS n FROM scans s JOIN compositions c ON s.capture_id = c.capture_id WHERE 1=1 ${fw}`;
       } else {
         scSQL = 'SELECT COUNT(*) AS n FROM scans';
         ccSQL = 'SELECT COUNT(*) AS n FROM compositions';
         dpSQL = 'SELECT COUNT(DISTINCT deposit) AS n FROM scans';
-        usSQL = 'SELECT COUNT(DISTINCT userID) AS n FROM scans';
+        usSQL = 'SELECT COUNT(DISTINCT user_id) AS n FROM scans';
       }
       const [sc] = await query(scSQL);
       const [cc] = await query(ccSQL);
